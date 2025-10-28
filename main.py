@@ -1,14 +1,16 @@
 import pandas as pd
 
 
-def prepCheques(xlsx):
+def prepCheques(xlsx, ty):
     df = pd.read_excel(xlsx)
     df['Customer'] = df['Customer'].fillna("")
     df['DateTime'] = df['DateTime'].dt.strftime('%m/%d/%Y')
-    df['Memo'] = '[' + df['Transaction ID'] + '] - [' + df['Description'] + ']'
-    dfAcc = pd.read_excel(xlsx, sheet_name='Mapping')
-    df = pd.merge(df, dfAcc, on='Account', how='left')
-    df = df[df['Trans'] == 'CustPmt']
+    # df['Transaction ID'] = df['Transaction ID'].astype(
+    #     str).str.replace('.0', '')
+    # df['Memo'] = '[' + df['Transaction ID'] + '] - [' + df['Description'] + ']'
+    # dfAcc = pd.read_excel(xlsx, sheet_name='Mapping')
+    # df = pd.merge(df, dfAcc, on='Account', how='left')
+    df = df[df['Trans'] == ty]
 
     print(f"Refined DataFrame:\n{df}")
     return df
@@ -27,8 +29,8 @@ def iifCheques(df, iif='src/main.iif'):
         for trnID, dfEntry in dfEntries:
             dfCrd = dfEntry[dfEntry['Debit'].isna()]
             dfDr = dfEntry[dfEntry['Debit'].notna()]
-            print(f"Debit Side:\n{dfDr}")
-            print(f"Credit Side:\n{dfCrd}")
+            # print(f"Debit Side:\n{dfDr}")
+            # print(f"Credit Side:\n{dfCrd}")
 
             # TRNS Entry (Main Line)
             for _, mL in dfCrd.iterrows():
@@ -89,8 +91,8 @@ def iifInvoice(df, iif='src/main.iif'):
         for trnID, dfEntry in dfEntries:
             dfCrd = dfEntry[dfEntry['Debit'].isna()]
             dfDr = dfEntry[dfEntry['Debit'].notna()]
-            print(f"Debit Side:\n{dfDr}")
-            print(f"Credit Side:\n{dfCrd}")
+            # print(f"Debit Side:\n{dfDr}")
+            # print(f"Credit Side:\n{dfCrd}")
 
             # Write TRNS row (Payment details)
             for _, mL in dfDr.iterrows():
@@ -124,8 +126,8 @@ def iifCustPmt(df, iif='src/main.iif'):
         for trnID, dfEntry in dfEntries:
             dfCrd = dfEntry[dfEntry['Debit'].isna()]
             dfDr = dfEntry[dfEntry['Debit'].notna()]
-            print(f"Debit Side:\n{dfDr}")
-            print(f"Credit Side:\n{dfCrd}")
+            # print(f"Debit Side:\n{dfDr}")
+            # print(f"Credit Side:\n{dfCrd}")
 
             # Write TRNS row (Payment details)
             for _, mL in dfDr.iterrows():
@@ -159,8 +161,8 @@ def iifBill(df, iif='src/main.iif'):
         for trnID, dfEntry in dfEntries:
             dfCrd = dfEntry[dfEntry['Debit'].isna()]
             dfDr = dfEntry[dfEntry['Debit'].notna()]
-            print(f"Debit Side:\n{dfDr}")
-            print(f"Credit Side:\n{dfCrd}")
+            # print(f"Debit Side:\n{dfDr}")
+            # print(f"Credit Side:\n{dfCrd}")
 
             # Write TRNS row (Payment details)
             for _, mL in dfCrd.iterrows():
@@ -178,13 +180,38 @@ def iifBill(df, iif='src/main.iif'):
             # End the transaction
             f.write('ENDTRNS\n')
 
+# [Filter GS for multi-Entries]
+
+
+def iifCompChecks(df, iif):
+    pass
+
+
+def sortData(xlsx):
+    df = pd.read_excel(xlsx)
+    checks = df[df['Type'] == 'Checks']
+    compoundChecks = df[df['Type'] == 'CompoundChecks']
+
+    return {
+        "checks": checks,
+        "compoundChecks": compoundChecks
+    }
+
+
+def iifWriter(sortedData):
+    for key, value in sortData.items():
+        if key == 'checks':
+            iifCheques(value, 'src/checks.iif')
+        elif key == 'compoundChecks':
+            iifCompChecks(value, 'src/compChecks.iif')
+
 
 def main():
     # Prepare excel entries for cheques template
-    df = prepCheques('src/main.xlsx')
+    dp = sortData('src/main.xlsx')
 
     # Create IIF Cheques file
-    iifBill(df)
+    iifWriter(dp)
 
 
 if __name__ == '__main__':
