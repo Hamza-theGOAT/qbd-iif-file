@@ -184,7 +184,34 @@ def iifBill(df, iif='src/main.iif'):
 
 
 def iifCompChecks(df, iif):
-    pass
+    dfDr = df[df['Debit'].notna()]
+    dfCrd = df[df['Debit'].isna()]
+    dfExp = dfDr[df['ACCNT'] != 'Accounts Receivable']
+    dfAR = dfDr[df['ACCNT'] == 'Accounts Receivable']
+
+    with open(iif, 'w', encoding='utf-8') as f:
+        # Write headers
+        f.write('!TRNS\tTRNSTYPE\tDATE\tACCNT\tAMOUNT\tDOCNUM\tMEMO\n')
+        f.write('!SPL\tTRNSTYPE\tDATE\tACCNT\tAMOUNT\tDOCNUM\tMEMO\tNAME\n')
+        f.write('!ENDTRNS\n')
+        for _, row in dfAR.iterrows():
+            AmtCrd = -row['Debit']
+            AccCrd = dfCrd.loc[dfCrd['Ref'] == row['Ref']].iloc[0]
+            f.write(
+                f"TRNS\tCHECK\t{row['DateTime']}\t{AccCrd}\t{AmtCrd}\t{row['Ref']}\t{row['Memo']}\t\n")
+            f.write(
+                f"SPL\tCHECK\t{row['DateTime']}\t{row['ACCNT']}\t{AmtCrd}\t{row['Ref']}\t{row['Memo']}\t{row['Customer']}\t\n")
+            f.write("ENDTRNS\n")
+
+        for group in dfExp.groupby('Ref'):
+            AmtCrd = group['Debit'].sum()
+            AccCrd = dfCrd.loc[dfCrd['Ref'] == group['Ref'].iloc[0]].iloc[0]
+            f.write(
+                f"TRNS\tCHECK\t{group['DateTime'].iloc[0]}\t{AccCrd}\t{AmtCrd}\t{group['Ref'].iloc[0]}\t{group['Memo'].iloc[0]}\t\n")
+            for _, row in group.iterrows():
+                f.write(
+                    f"SPL\tCHECK\t{row['DateTime']}\t{row['ACCNT']}\t{AmtCrd}\t{row['Ref']}\t{row['Memo']}\t{row['Customer']}\t\n")
+            f.write("ENDTRNS\n")
 
 
 def sortData(xlsx):
