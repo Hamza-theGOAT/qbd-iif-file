@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 from datetime import datetime as dt
 
 
@@ -36,12 +37,12 @@ def iifCheques(df, iif='src/main.iif'):
             # TRNS Entry (Main Line)
             for _, mL in dfCrd.iterrows():
                 f.write(
-                    f"TRNS\tCHECK\t{mL['DateTime']}\t{mL['ACCNT']}\t-{mL['Credit']}\t{trnID}\t{mL['Memo']}\t\n")
+                    f"TRNS\tCHECK\t{mL['DATE']}\t{mL['ACCNT']}\t-{mL['Credit']}\t{trnID}\t{mL['MEMO']}\t\n")
 
             # SPL Entry (Sub/Item Line)
             for _, mL in dfDr.iterrows():
                 f.write(
-                    f"SPL\tCHECK\t{mL['DateTime']}\t{mL['ACCNT']}\t{mL['Debit']}\t{trnID}\t{mL['Memo']}\t{mL['Customer']}\t\n")
+                    f"SPL\tCHECK\t{mL['DATE']}\t{mL['ACCNT']}\t{mL['Debit']}\t{trnID}\t{mL['MEMO']}\t{mL['Customer']}\t\n")
 
             # Transaction Break
             f.write("ENDTRNS\n")
@@ -223,14 +224,48 @@ def sortData(xlsx):
     df = df[df['DATE'].notna()]
     df['DATE'] = pd.to_datetime(
         df['DATE'], format='%d/%m/%Y').dt.strftime('%m/%d/%Y')
-    print(f"Main Excel:\n{df}")
-    checks = df[df['Type'] == 'check']
-    compoundChecks = df[df['Type'] == 'compoundCheck']
 
-    return {
-        "checks": checks,
-        "compoundChecks": compoundChecks
-    }
+    dfFlt = pd.DataFrame()
+
+    for key, dfGrp in df.groupby('Trns'):
+        dfGrpCr = dfGrp[dfGrp['Debit'].isna()]
+        dfGrpDr = dfGrp[dfGrp['Debit'].notna()]
+
+        # Default type
+        dfGrp = dfGrp.copy()
+        dfGrp['Type'] = 'check'
+
+        if not dfGrp.empty:
+            crdAcc = dfGrpCr['ACCNT'].iloc[0]
+            drAccs = [acc for acc in dfGrpDr['ACCNT']]
+            arLen = len(dfGrp[dfGrp['ACCNT'] == '12100 · Accounts Receivable'])
+            apLen = len(dfGrp[dfGrp['ACCNT'] == '23000 · Accounts Payable'])
+
+            print(f'[{dfGrp['Trns'].iloc[0]}]')
+            print(f'Credit Account: {crdAcc}')
+            print(f'Debit Accounts: {drAccs}')
+
+            if crdAcc == '23000 · Accounts Payable':
+                if '12100 · Accounts Receivable' in drAccs:
+                    dfGrp['Type'] = 'compBill'
+                    print(f'Setting Type to: {dfGrp['Type'].iloc[0]}')
+                else:
+                    dfGrp['Type'] = 'bill'
+                    print(f'Setting Type to: {dfGrp['Type'].iloc[0]}')
+            elif arLen > 1:
+                dfGrp['Type'] = 'compCheck'
+                print(f'Setting Type to: {dfGrp['Type'].iloc[0]}')
+            else:
+                dfGrp['Type'] = 'check'
+                print(f'Setting Type to: {dfGrp['Type'].iloc[0]}')
+            print('_'*100)
+
+        dfFlt = pd.concat([dfFlt, dfGrp])
+
+    dfFlt.to_excel('src/FilteredData.xlsx', sheet_name='Data', index=False)
+
+    # print(f"Main Excel:\n{df}")
+    print(f"Filtered Excel:\n{dfFlt}")
 
 
 def iifWriter(sortedData):
@@ -243,10 +278,7 @@ def iifWriter(sortedData):
 
 def main():
     # Prepare excel entries for cheques template
-    dp = sortData('src/main.xlsx')
-
-    # Create IIF Cheques file
-    iifWriter(dp)
+    sortData('src/main.xlsx')
 
 
 if __name__ == '__main__':
