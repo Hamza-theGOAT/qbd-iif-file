@@ -1,4 +1,5 @@
 import pandas as pd
+from datetime import datetime as dt
 
 
 def prepCheques(xlsx, ty):
@@ -17,7 +18,7 @@ def prepCheques(xlsx, ty):
 
 
 def iifCheques(df, iif='src/main.iif'):
-    dfEntries = df.groupby('Transaction ID')
+    dfEntries = df.groupby('Trns')
 
     with open(iif, 'w', encoding="utf-8") as f:
         # Write headers
@@ -186,8 +187,10 @@ def iifBill(df, iif='src/main.iif'):
 def iifCompChecks(df, iif):
     dfDr = df[df['Debit'].notna()]
     dfCrd = df[df['Debit'].isna()]
-    dfExp = dfDr[df['ACCNT'] != 'Accounts Receivable']
-    dfAR = dfDr[df['ACCNT'] == 'Accounts Receivable']
+    dfExp = dfDr[df['ACCNT'] != '12100 · Accounts Receivable']
+    dfAR = dfDr[df['ACCNT'] == '12100 · Accounts Receivable']
+    print(f"Standard Compound Entry Check:\n{dfExp}")
+    print(f"Compound AR Check\n{dfAR}")
 
     with open(iif, 'w', encoding='utf-8') as f:
         # Write headers
@@ -196,28 +199,33 @@ def iifCompChecks(df, iif):
         f.write('!ENDTRNS\n')
         for _, row in dfAR.iterrows():
             AmtCrd = -row['Debit']
-            AccCrd = dfCrd.loc[dfCrd['Ref'] == row['Ref']].iloc[0]
+            crd = dfCrd.loc[dfCrd['REF'] == row['REF']].iloc[0]
             f.write(
-                f"TRNS\tCHECK\t{row['DateTime']}\t{AccCrd}\t{AmtCrd}\t{row['Ref']}\t{row['Memo']}\t\n")
+                f"TRNS\tCHECK\t{crd['DATE']}\t{crd['ACCNT']}\t{AmtCrd}\t{crd['REF']}\t{crd['MEMO']}\t\n")
             f.write(
-                f"SPL\tCHECK\t{row['DateTime']}\t{row['ACCNT']}\t{AmtCrd}\t{row['Ref']}\t{row['Memo']}\t{row['Customer']}\t\n")
+                f"SPL\tCHECK\t{row['DATE']}\t{row['ACCNT']}\t{row['Debit']}\t{row['REF']}\t{row['MEMO']}\t{row['Customer']}\t\n")
             f.write("ENDTRNS\n")
 
-        for group in dfExp.groupby('Ref'):
-            AmtCrd = group['Debit'].sum()
-            AccCrd = dfCrd.loc[dfCrd['Ref'] == group['Ref'].iloc[0]].iloc[0]
+        for _, group in dfExp.groupby('REF'):
+            AmtCrd = -group['Debit'].sum()
+            crd = dfCrd.loc[dfCrd['REF'] == group['REF'].iloc[0]].iloc[0]
             f.write(
-                f"TRNS\tCHECK\t{group['DateTime'].iloc[0]}\t{AccCrd}\t{AmtCrd}\t{group['Ref'].iloc[0]}\t{group['Memo'].iloc[0]}\t\n")
+                f"TRNS\tCHECK\t{crd['DATE']}\t{crd['ACCNT']}\t{AmtCrd}\t{crd['REF']}\t{crd['MEMO']}\t\n")
             for _, row in group.iterrows():
                 f.write(
-                    f"SPL\tCHECK\t{row['DateTime']}\t{row['ACCNT']}\t{AmtCrd}\t{row['Ref']}\t{row['Memo']}\t{row['Customer']}\t\n")
+                    f"SPL\tCHECK\t{row['DATE']}\t{row['ACCNT']}\t{row['Debit']}\t{row['REF']}\t{row['MEMO']}\t{row['Customer']}\t\n")
             f.write("ENDTRNS\n")
 
 
 def sortData(xlsx):
     df = pd.read_excel(xlsx)
-    checks = df[df['Type'] == 'Checks']
-    compoundChecks = df[df['Type'] == 'CompoundChecks']
+    df['Customer'] = df['Customer'].fillna('')
+    df = df[df['DATE'].notna()]
+    df['DATE'] = pd.to_datetime(
+        df['DATE'], format='%d/%m/%Y').dt.strftime('%m/%d/%Y')
+    print(f"Main Excel:\n{df}")
+    checks = df[df['Type'] == 'check']
+    compoundChecks = df[df['Type'] == 'compoundCheck']
 
     return {
         "checks": checks,
@@ -226,7 +234,7 @@ def sortData(xlsx):
 
 
 def iifWriter(sortedData):
-    for key, value in sortData.items():
+    for key, value in sortedData.items():
         if key == 'checks':
             iifCheques(value, 'src/checks.iif')
         elif key == 'compoundChecks':
