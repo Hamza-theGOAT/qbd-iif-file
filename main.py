@@ -47,6 +47,23 @@ class IIFBuilder:
                         f"SPL\tCHECK\t{row['DATE']}\t{row['ACCNT']}\t{row['Debit']}\t{row['REF']}\t{row['MEMO']}\t{row['Customer']}\t\n")
                 f.write("ENDTRNS\n")
 
+    def writeIIF(self):
+        for ty, dfTy in self.df.groupby('Type'):
+            print(f"Processing: {ty}")
+            print(f"DataFrame:\n{dfTy}")
+            if ty == 'bill':
+                continue
+            elif ty == 'compBill':
+                continue
+            elif ty == 'deposit':
+                continue
+            elif ty == 'check':
+                continue
+            elif ty == 'compCheck':
+                continue
+            else:
+                KeyError('Invalid Type')
+
 
 def sortData(xlsx):
     df = pd.read_excel(xlsx)
@@ -101,10 +118,14 @@ def sortData(xlsx):
     # print(f"Main Excel:\n{df}")
     print(f"Filtered Excel:\n{dfFlt}")
 
+    return dfFlt
+
 
 def main():
     # Prepare excel entries for cheques template
-    sortData('src/main.xlsx')
+    df = sortData('src/main.xlsx')
+    builder = IIFBuilder(df)
+    builder.writeIIF()
 
 
 if __name__ == '__main__':
