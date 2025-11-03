@@ -11,6 +11,33 @@ class IIFBuilder:
         self.outDir = outDir
         self.df = df
 
+    def iifChecks(self, fileName: str = 'main.iif'):
+        # Output file path
+        iif = os.path.join(self.outDir, fileName)
+
+        # Separate Dr and Cr portion
+        dfDr = self.df[self.df['Debit'].notna()]
+        dfCrd = self.df[self.df['Debit'].isna()]
+
+        with open(iif, 'w', encoding="utf-8") as f:
+            # Write headers
+            f.write('!TRNS\tTRNSTYPE\tDATE\tACCNT\tAMOUNT\tDOCNUM\tMEMO\n')
+            f.write('!SPL\tTRNSTYPE\tDATE\tACCNT\tAMOUNT\tDOCNUM\tMEMO\tNAME\n')
+            f.write('!ENDTRNS\n')
+
+            # TRNS Entry (Main Line)
+            for _, r in dfCrd.iterrows():
+                f.write(
+                    f"TRNS\tCHECK\t{r['DATE']}\t{r['ACCNT']}\t-{r['Credit']}\t{self.df['Trns']}\t{r['MEMO']}\t\n")
+
+            # SPL Entry (Sub/Item Line)
+            for _, r in dfDr.iterrows():
+                f.write(
+                    f"SPL\tCHECK\t{r['DATE']}\t{r['ACCNT']}\t{r['Debit']}\t{self.df['Trns']}\t{r['MEMO']}\t{r['Customer']}\t\n")
+
+            # Transaction Break
+            f.write("ENDTRNS\n")
+
     def iifCompChecks(self, fileName: str = 'main.iif'):
         # Output file path
         iif = os.path.join(self.outDir, fileName)
@@ -28,13 +55,13 @@ class IIFBuilder:
             f.write('!TRNS\tTRNSTYPE\tDATE\tACCNT\tAMOUNT\tDOCNUM\tMEMO\n')
             f.write('!SPL\tTRNSTYPE\tDATE\tACCNT\tAMOUNT\tDOCNUM\tMEMO\tNAME\n')
             f.write('!ENDTRNS\n')
-            for _, row in dfAR.iterrows():
-                AmtCrd = -row['Debit']
-                crd = dfCrd.loc[dfCrd['REF'] == row['REF']].iloc[0]
+            for _, r in dfAR.iterrows():
+                AmtCrd = -r['Debit']
+                crd = dfCrd.loc[dfCrd['REF'] == r['REF']].iloc[0]
                 f.write(
                     f"TRNS\tCHECK\t{crd['DATE']}\t{crd['ACCNT']}\t{AmtCrd}\t{crd['REF']}\t{crd['MEMO']}\t\n")
                 f.write(
-                    f"SPL\tCHECK\t{row['DATE']}\t{row['ACCNT']}\t{row['Debit']}\t{row['REF']}\t{row['MEMO']}\t{row['Customer']}\t\n")
+                    f"SPL\tCHECK\t{r['DATE']}\t{r['ACCNT']}\t{r['Debit']}\t{r['REF']}\t{r['MEMO']}\t{r['Customer']}\t\n")
                 f.write("ENDTRNS\n")
 
             for _, group in dfExp.groupby('REF'):
@@ -42,9 +69,9 @@ class IIFBuilder:
                 crd = dfCrd.loc[dfCrd['REF'] == group['REF'].iloc[0]].iloc[0]
                 f.write(
                     f"TRNS\tCHECK\t{crd['DATE']}\t{crd['ACCNT']}\t{AmtCrd}\t{crd['REF']}\t{crd['MEMO']}\t\n")
-                for _, row in group.iterrows():
+                for _, r in group.iterrows():
                     f.write(
-                        f"SPL\tCHECK\t{row['DATE']}\t{row['ACCNT']}\t{row['Debit']}\t{row['REF']}\t{row['MEMO']}\t{row['Customer']}\t\n")
+                        f"SPL\tCHECK\t{r['DATE']}\t{r['ACCNT']}\t{r['Debit']}\t{r['REF']}\t{r['MEMO']}\t{r['Customer']}\t\n")
                 f.write("ENDTRNS\n")
 
     def writeIIF(self):
@@ -58,9 +85,9 @@ class IIFBuilder:
             elif ty == 'deposit':
                 continue
             elif ty == 'check':
-                continue
+                self.iifCompChecks('checks.iif')
             elif ty == 'compCheck':
-                continue
+                self.iifCompChecks('compChecks.iif')
             else:
                 KeyError('Invalid Type')
 
