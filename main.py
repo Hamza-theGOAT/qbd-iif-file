@@ -6,37 +6,46 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-def iifCompChecks(df, iif):
-    dfDr = df[df['Debit'].notna()]
-    dfCrd = df[df['Debit'].isna()]
-    dfExp = dfDr[df['ACCNT'] != os.getenv('AR')]
-    dfAR = dfDr[df['ACCNT'] == os.getenv('AR')]
-    print(f"Standard Compound Entry Check:\n{dfExp}")
-    print(f"Compound AR Check\n{dfAR}")
+class IIFBuilder:
+    def __init__(self, df: pd.DataFrame, outDir: str = 'src'):
+        self.outDir = outDir
+        self.df = df
 
-    with open(iif, 'w', encoding='utf-8') as f:
-        # Write headers
-        f.write('!TRNS\tTRNSTYPE\tDATE\tACCNT\tAMOUNT\tDOCNUM\tMEMO\n')
-        f.write('!SPL\tTRNSTYPE\tDATE\tACCNT\tAMOUNT\tDOCNUM\tMEMO\tNAME\n')
-        f.write('!ENDTRNS\n')
-        for _, row in dfAR.iterrows():
-            AmtCrd = -row['Debit']
-            crd = dfCrd.loc[dfCrd['REF'] == row['REF']].iloc[0]
-            f.write(
-                f"TRNS\tCHECK\t{crd['DATE']}\t{crd['ACCNT']}\t{AmtCrd}\t{crd['REF']}\t{crd['MEMO']}\t\n")
-            f.write(
-                f"SPL\tCHECK\t{row['DATE']}\t{row['ACCNT']}\t{row['Debit']}\t{row['REF']}\t{row['MEMO']}\t{row['Customer']}\t\n")
-            f.write("ENDTRNS\n")
+    def iifCompChecks(self, fileName: str = 'main.iif'):
+        # Output file path
+        iif = os.path.join(self.outDir, fileName)
 
-        for _, group in dfExp.groupby('REF'):
-            AmtCrd = -group['Debit'].sum()
-            crd = dfCrd.loc[dfCrd['REF'] == group['REF'].iloc[0]].iloc[0]
-            f.write(
-                f"TRNS\tCHECK\t{crd['DATE']}\t{crd['ACCNT']}\t{AmtCrd}\t{crd['REF']}\t{crd['MEMO']}\t\n")
-            for _, row in group.iterrows():
+        # Separate Dr and Cr portion
+        dfDr = self.df[self.df['Debit'].notna()]
+        dfCrd = self.df[self.df['Debit'].isna()]
+        dfExp = dfDr[self.df['ACCNT'] != os.getenv('AR')]
+        dfAR = dfDr[self.df['ACCNT'] == os.getenv('AR')]
+        print(f"Standard Compound Entry Check:\n{dfExp}")
+        print(f"Compound AR Check\n{dfAR}")
+
+        with open(iif, 'w', encoding='utf-8') as f:
+            # Write headers
+            f.write('!TRNS\tTRNSTYPE\tDATE\tACCNT\tAMOUNT\tDOCNUM\tMEMO\n')
+            f.write('!SPL\tTRNSTYPE\tDATE\tACCNT\tAMOUNT\tDOCNUM\tMEMO\tNAME\n')
+            f.write('!ENDTRNS\n')
+            for _, row in dfAR.iterrows():
+                AmtCrd = -row['Debit']
+                crd = dfCrd.loc[dfCrd['REF'] == row['REF']].iloc[0]
+                f.write(
+                    f"TRNS\tCHECK\t{crd['DATE']}\t{crd['ACCNT']}\t{AmtCrd}\t{crd['REF']}\t{crd['MEMO']}\t\n")
                 f.write(
                     f"SPL\tCHECK\t{row['DATE']}\t{row['ACCNT']}\t{row['Debit']}\t{row['REF']}\t{row['MEMO']}\t{row['Customer']}\t\n")
-            f.write("ENDTRNS\n")
+                f.write("ENDTRNS\n")
+
+            for _, group in dfExp.groupby('REF'):
+                AmtCrd = -group['Debit'].sum()
+                crd = dfCrd.loc[dfCrd['REF'] == group['REF'].iloc[0]].iloc[0]
+                f.write(
+                    f"TRNS\tCHECK\t{crd['DATE']}\t{crd['ACCNT']}\t{AmtCrd}\t{crd['REF']}\t{crd['MEMO']}\t\n")
+                for _, row in group.iterrows():
+                    f.write(
+                        f"SPL\tCHECK\t{row['DATE']}\t{row['ACCNT']}\t{row['Debit']}\t{row['REF']}\t{row['MEMO']}\t{row['Customer']}\t\n")
+                f.write("ENDTRNS\n")
 
 
 def sortData(xlsx):
