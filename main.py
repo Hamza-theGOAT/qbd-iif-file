@@ -11,7 +11,7 @@ class IIFBuilder:
         self.outDir = outDir
         self.df = df
 
-    def iifChecks(self, filename: str = 'main.iif'):
+    def iifChecks(self, filename: str = 'checks.iif'):
         # Output file path
         iif = os.path.join(self.outDir, filename)
 
@@ -28,17 +28,17 @@ class IIFBuilder:
             # TRNS Entry (Main Line)
             for _, r in dfCrd.iterrows():
                 f.write(
-                    f"TRNS\tCHECK\t{r['DATE']}\t{self.df['Trns']}\t{r['ACCNT']}\t-{r['Credit']}\t{r['MEMO']}\t\n")
+                    f"TRNS\tCHECK\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t-{r['Credit']}\t{r['MEMO']}\t\n")
 
             # SPL Entry (Sub/Item Line)
             for _, r in dfDr.iterrows():
                 f.write(
-                    f"SPL\tCHECK\t{r['DATE']}\t{self.df['Trns']}\t{r['ACCNT']}\t{r['Debit']}\t{r['MEMO']}\t{r['Customer']}\t\n")
+                    f"SPL\tCHECK\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t{r['Debit']}\t{r['MEMO']}\t{r['Customer']}\t\n")
 
             # Transaction Break
             f.write("ENDTRNS\n")
 
-    def iifCompChecks(self, filename: str = 'main.iif'):
+    def iifCompChecks(self, filename: str = 'compChecks.iif'):
         # Output file path
         iif = os.path.join(self.outDir, filename)
 
@@ -47,8 +47,6 @@ class IIFBuilder:
         dfCrd = self.df[self.df['Debit'].isna()]
         dfExp = dfDr[self.df['ACCNT'] != os.getenv('AR')]
         dfAR = dfDr[self.df['ACCNT'] == os.getenv('AR')]
-        print(f"Standard Compound Entry Check:\n{dfExp}")
-        print(f"Compound AR Check\n{dfAR}")
 
         with open(iif, 'w', encoding='utf-8') as f:
             # Write headers
@@ -74,7 +72,34 @@ class IIFBuilder:
                         f"SPL\tCHECK\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t{r['Debit']}\t{r['MEMO']}\t{r['Customer']}\t\n")
                 f.write("ENDTRNS\n")
 
-    def iifBills(self, filename: str = 'main.iif'):
+    def iifDeposits(self, filename: str = 'deposit.iif'):
+        # Output file path
+        iif = os.path.join(self.outDir, filename)
+
+        # Separate Dr and Cr portion
+        dfDr = self.df[self.df['Debit'].notna()]
+        dfCrd = self.df[self.df['Debit'].isna()]
+
+        with open(iif, 'w', encoding="utf-8") as f:
+            # Write headers
+            f.write('!TRNS\tTRNSTYPE\tDATE\tDOCNUM\tACCNT\tAMOUNT\tMEMO\n')
+            f.write('!SPL\tTRNSTYPE\tDATE\tDOCNUM\tACCNT\tAMOUNT\tMEMO\tNAME\n')
+            f.write('!ENDTRNS\n')
+
+            # TRNS Entry (Main Line)
+            for _, r in dfCrd.iterrows():
+                f.write(
+                    f"TRNS\tDEPOSIT\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t{r['Debit']}\t{r['MEMO']}\t\n")
+
+            # SPL Entry (Sub/Item Line)
+            for _, r in dfDr.iterrows():
+                f.write(
+                    f"SPL\tDEPOSIT\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t-{r['Credit']}\t{r['MEMO']}\t{r['Customer']}\t\n")
+
+            # Transaction Break
+            f.write("ENDTRNS\n")
+
+    def iifBills(self, filename: str = 'bills.iif'):
         # Output file path
         iif = os.path.join(self.outDir, filename)
 
@@ -93,19 +118,19 @@ class IIFBuilder:
             # Write TRNS row (Payment details)
             for _, r in dfCrd.iterrows():
                 f.write(
-                    f"TRNS\tBILL\t{r['DateTime']}\t{r['Trns']}\t{r['ACCNT']}\t-{r['Credit']}\t{r['Memo']}\t{r['Customer']}\n"
+                    f"TRNS\tBILL\t{r['DateTime']}\t{r['REF']}\t{r['ACCNT']}\t-{r['Credit']}\t{r['Memo']}\t{r['Customer']}\n"
                 )
 
             # Write SPL row (AR account for customer)
             for _, r in dfDr.iterrows():
                 f.write(
-                    f"SPL\tBILL\t{r['DateTime']}\t{r['Trns']}\t{r['ACCNT']}\t{r['Debit']}\t{r['Memo']}\t{r['Customer']}\n"
+                    f"SPL\tBILL\t{r['DateTime']}\t{r['REF']}\t{r['ACCNT']}\t{r['Debit']}\t{r['Memo']}\t{r['Customer']}\n"
                 )
 
             # End the transaction
             f.write('ENDTRNS\n')
 
-    def iifCompBills(self, filename: str = 'main.iif'):
+    def iifCompBills(self, filename: str = 'compBills.iif'):
         # Output file path
         iif = os.path.join(self.outDir, filename)
 
