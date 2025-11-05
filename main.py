@@ -11,9 +11,9 @@ class IIFBuilder:
         self.outDir = outDir
         self.df = df
 
-    def iifChecks(self, fileName: str = 'main.iif'):
+    def iifChecks(self, filename: str = 'main.iif'):
         # Output file path
-        iif = os.path.join(self.outDir, fileName)
+        iif = os.path.join(self.outDir, filename)
 
         # Separate Dr and Cr portion
         dfDr = self.df[self.df['Debit'].notna()]
@@ -38,9 +38,9 @@ class IIFBuilder:
             # Transaction Break
             f.write("ENDTRNS\n")
 
-    def iifCompChecks(self, fileName: str = 'main.iif'):
+    def iifCompChecks(self, filename: str = 'main.iif'):
         # Output file path
-        iif = os.path.join(self.outDir, fileName)
+        iif = os.path.join(self.outDir, filename)
 
         # Separate Dr and Cr portion
         dfDr = self.df[self.df['Debit'].notna()]
@@ -73,6 +73,39 @@ class IIFBuilder:
                     f.write(
                         f"SPL\tCHECK\t{r['DATE']}\t{r['ACCNT']}\t{r['Debit']}\t{r['REF']}\t{r['MEMO']}\t{r['Customer']}\t\n")
                 f.write("ENDTRNS\n")
+
+    def iifBills(self, filename: str = 'main.iif'):
+        # Output file path
+        iif = os.path.join(self.outDir, filename)
+
+        # Separate Dr and Cr portion
+        dfDr = self.df[self.df['Debit'].notna()]
+        dfCrd = self.df[self.df['Debit'].isna()]
+
+        with open(iif, 'w', encoding='utf-8') as f:
+            # Write headers
+            f.write(
+                '!TRNS\tTRNSTYPE\tDATE\tACCNT\tAMOUNT\tNAME\tDOCNUM\tMEMO\n')
+            f.write(
+                '!SPL\tTRNSTYPE\tDATE\tACCNT\tAMOUNT\tNAME\tDOCNUM\tMEMO\n')
+            f.write('!ENDTRNS\n')
+
+            # Write TRNS row (Payment details)
+            for _, r in dfCrd.iterrows():
+                f.write(
+                    f"TRNS\tBILL\t{r['DateTime']}\t{r['ACCNT']}\t-{r['Credit']}\t{
+                        r['Customer']}\t{r['Trns']}\t{r['Memo']}\n"
+                )
+
+            # Write SPL row (AR account for customer)
+            for _, r in dfDr.iterrows():
+                f.write(
+                    f"SPL\tBILL\t{r['DateTime']}\t{r['ACCNT']}\t{r['Debit']}\t{
+                        r['Customer']}\t{r['Trns']}\t{r['Memo']}\n"
+                )
+
+            # End the transaction
+            f.write('ENDTRNS\n')
 
     def writeIIF(self):
         for ty, dfTy in self.df.groupby('Type'):
