@@ -120,13 +120,13 @@ class IIFBuilder:
             # Write TRNS row (Payment details)
             for _, r in dfCrd.iterrows():
                 f.write(
-                    f"TRNS\tBILL\t{r['DateTime']}\t{r['REF']}\t{r['ACCNT']}\t-{r['Credit']}\t{r['Memo']}\t{r['Customer']}\n"
+                    f"TRNS\tBILL\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t-{r['Credit']}\t{r['MEMO']}\t{r['Customer']}\n"
                 )
 
             # Write SPL row (AR account for customer)
             for _, r in dfDr.iterrows():
                 f.write(
-                    f"SPL\tBILL\t{r['DateTime']}\t{r['REF']}\t{r['ACCNT']}\t{r['Debit']}\t{r['Memo']}\t{r['Customer']}\n"
+                    f"SPL\tBILL\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t{r['Debit']}\t{r['MEMO']}\t{r['Customer']}\n"
                 )
 
             # End the transaction
@@ -177,7 +177,35 @@ class IIFBuilder:
                 f.write("ENDTRNS\n")
 
     def iifJournal(self, filename: str = 'journals.iif'):
-        pass
+        # Output file path
+        iif = os.path.join(self.outDir, filename)
+
+        # Separate Dr and Cr portion
+        dfDr = self.df[self.df['Debit'].notna()]
+        dfCrd = self.df[self.df['Debit'].isna()]
+
+        with open(iif, 'w', encoding='utf-8') as f:
+            # Write headers
+            f.write(
+                '!TRNS\tTRNSTYPE\tDATE\tDOCNUM\tACCNT\tAMOUNT\tMEMO\tNAME\n')
+            f.write(
+                '!SPL\tTRNSTYPE\tDATE\tDOCNUM\tACCNT\tAMOUNT\tMEMO\tNAME\n')
+            f.write('!ENDTRNS\n')
+
+            # Write TRNS row (Payment details)
+            for _, r in dfCrd.iterrows():
+                f.write(
+                    f"TRNS\tJOURNAL\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t{r['Debit']}\t{r['MEMO']}\t{r['Customer']}\n"
+                )
+
+            # Write SPL row (AR account for customer)
+            for _, r in dfDr.iterrows():
+                f.write(
+                    f"SPL\tJOURNAL\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t-{r['Credit']}\t{r['MEMO']}\t{r['Customer']}\n"
+                )
+
+            # End the transaction
+            f.write('ENDTRNS\n')
 
     def writeIIF(self):
         for ty, dfTy in self.df.groupby('Type'):
@@ -190,7 +218,7 @@ class IIFBuilder:
             elif ty == 'deposit':
                 self.iifDeposits()
             elif ty == 'journal':
-                self.iifDeposits()
+                self.iifJournal()
             elif ty == 'check':
                 self.iifChecks()
             elif ty == 'compCheck':
