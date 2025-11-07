@@ -72,7 +72,7 @@ class IIFBuilder:
                         f"SPL\tCHECK\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t{r['Debit']}\t{r['MEMO']}\t{r['Customer']}\t\n")
                 f.write("ENDTRNS\n")
 
-    def iifDeposits(self, filename: str = 'deposit.iif'):
+    def iifDeposits(self, filename: str = 'deposits.iif'):
         # Output file path
         iif = os.path.join(self.outDir, filename)
 
@@ -98,6 +98,9 @@ class IIFBuilder:
 
             # Transaction Break
             f.write("ENDTRNS\n")
+
+    def iifCompDeposits(self, filename: str = 'compDeposits.iif'):
+        pass
 
     def iifBills(self, filename: str = 'bills.iif'):
         # Output file path
@@ -179,15 +182,17 @@ class IIFBuilder:
             print(f"Processing: {ty}")
             print(f"DataFrame:\n{dfTy}")
             if ty == 'bill':
-                continue
+                self.iifBills()
             elif ty == 'compBill':
-                continue
+                self.iifCompBills()
             elif ty == 'deposit':
-                continue
+                self.iifDeposits()
+            elif ty == 'compDeposit':
+                self.iifCompDeposits()
             elif ty == 'check':
-                self.iifCompChecks('checks.iif')
+                self.iifChecks()
             elif ty == 'compCheck':
-                self.iifCompChecks('compChecks.iif')
+                self.iifCompChecks()
             else:
                 KeyError('Invalid Type')
 
@@ -213,23 +218,29 @@ def sortData(xlsx):
         if not dfGrp.empty:
             crdAcc = dfGrpCr['ACCNT'].iloc[0]
             drAccs = [acc for acc in dfGrpDr['ACCNT']]
-            arLen = len(dfGrp[dfGrp['ACCNT'] == os.getenv('AR')])
-            apLen = len(dfGrp[dfGrp['ACCNT'] == os.getenv('AP')])
+            arAcc = os.getenv('AR')
+            apAcc = os.getenv('AP')
+            arLen = len(dfGrp[dfGrp['ACCNT'] == arAcc])
+            apLen = len(dfGrp[dfGrp['ACCNT'] == apAcc])
 
             print(f'[{dfGrp['Trns'].iloc[0]}]')
             print(f'Credit Account: {crdAcc}')
             print(f'Debit Accounts: {drAccs}')
 
-            if crdAcc == os.getenv('AP'):
-                if os.getenv('AR') in drAccs:
+            if crdAcc == apAcc:
+                if arAcc in drAccs:
                     dfGrp['Type'] = 'compBill'
                     print(f'Setting Type to: {dfGrp['Type'].iloc[0]}')
                 else:
                     dfGrp['Type'] = 'bill'
                     print(f'Setting Type to: {dfGrp['Type'].iloc[0]}')
-            elif any(acc in drAccs for acc in bankAccs):
-                dfGrp['Type'] = 'deposit'
-                print(f'Setting Type to: {dfGrp['Type'].iloc[0]}')
+            elif crdAcc == arAcc:
+                if arAcc in drAccs:
+                    dfGrp['Type'] = 'compDeposit'
+                    print(f'Setting Type to: {dfGrp['Type'].iloc[0]}')
+                else:
+                    dfGrp['Type'] = 'deposit'
+                    print(f'Setting Type to: {dfGrp['Type'].iloc[0]}')
             elif arLen > 1:
                 dfGrp['Type'] = 'compCheck'
                 print(f'Setting Type to: {dfGrp['Type'].iloc[0]}')
