@@ -176,6 +176,9 @@ class IIFBuilder:
                         f"SPL\tBILL\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t{r['Debit']}\t{r['MEMO']}\t{r['Customer']}\t\n")
                 f.write("ENDTRNS\n")
 
+    def iifJournal(self, filename: str = 'journals.iif'):
+        pass
+
     def writeIIF(self):
         for ty, dfTy in self.df.groupby('Type'):
             # print(f"Processing: {ty}")
@@ -185,6 +188,8 @@ class IIFBuilder:
             elif ty == 'compBill':
                 self.iifCompBills()
             elif ty == 'deposit':
+                self.iifDeposits()
+            elif ty == 'journal':
                 self.iifDeposits()
             elif ty == 'check':
                 self.iifChecks()
@@ -240,6 +245,9 @@ def sortData(xlsx):
                 else:
                     dfGrp['Type'] = 'deposit'
                     print(f'Setting Type to: {dfGrp['Type'].iloc[0]}')
+            elif crdAcc not in bankAccs:
+                dfGrp['Type'] = 'journal'
+                print(f'Setting Type to: {dfGrp['Type'].iloc[0]}')
             elif arLen > 1:
                 dfGrp['Type'] = 'compCheck'
                 print(f'Setting Type to: {dfGrp['Type'].iloc[0]}')
