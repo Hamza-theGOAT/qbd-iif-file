@@ -45,8 +45,10 @@ class IIFBuilder:
         # Separate Dr and Cr portion
         dfDr = self.df[self.df['Debit'].notna()]
         dfCrd = self.df[self.df['Debit'].isna()]
-        dfExp = dfDr[self.df['ACCNT'] != os.getenv('AR')]
-        dfAR = dfDr[self.df['ACCNT'] == os.getenv('AR')]
+        dfExp = dfDr.copy()
+        dfExp = dfExp[dfExp['ACCNT'] != os.getenv('AR')]
+        dfAR = dfDr.copy()
+        dfAR = dfAR[dfAR['ACCNT'] == os.getenv('AR')]
 
         with open(iif, 'w', encoding='utf-8') as f:
             # Write headers
@@ -99,9 +101,6 @@ class IIFBuilder:
             # Transaction Break
             f.write("ENDTRNS\n")
 
-    def iifCompDeposits(self, filename: str = 'compDeposits.iif'):
-        pass
-
     def iifBills(self, filename: str = 'bills.iif'):
         # Output file path
         iif = os.path.join(self.outDir, filename)
@@ -140,10 +139,10 @@ class IIFBuilder:
         # Separate Dr and Cr portion
         dfDr = self.df[self.df['Debit'].notna()]
         dfCrd = self.df[self.df['Debit'].isna()]
-        dfExp = dfDr[self.df['ACCNT'] != os.getenv('AR')]
-        dfAR = dfDr[self.df['ACCNT'] == os.getenv('AR')]
-        print(f"Standard Compound Entry Bills:\n{dfExp}")
-        print(f"Compound AR Bills\n{dfAR}")
+        dfExp = dfDr.copy()
+        dfExp = dfExp[dfExp['ACCNT'] != os.getenv('AR')]
+        dfAR = dfDr.copy()
+        dfAR = dfAR[dfAR['ACCNT'] == os.getenv('AR')]
 
         with open(iif, 'w', encoding='utf-8') as f:
             # Write headers
@@ -179,16 +178,14 @@ class IIFBuilder:
 
     def writeIIF(self):
         for ty, dfTy in self.df.groupby('Type'):
-            print(f"Processing: {ty}")
-            print(f"DataFrame:\n{dfTy}")
+            # print(f"Processing: {ty}")
+            # print(f"DataFrame:\n{dfTy}")
             if ty == 'bill':
                 self.iifBills()
             elif ty == 'compBill':
                 self.iifCompBills()
             elif ty == 'deposit':
                 self.iifDeposits()
-            elif ty == 'compDeposit':
-                self.iifCompDeposits()
             elif ty == 'check':
                 self.iifChecks()
             elif ty == 'compCheck':
@@ -222,6 +219,7 @@ def sortData(xlsx):
             apAcc = os.getenv('AP')
             arLen = len(dfGrp[dfGrp['ACCNT'] == arAcc])
             apLen = len(dfGrp[dfGrp['ACCNT'] == apAcc])
+            dfGrp['WARNINGS'] = ""
 
             print(f'[{dfGrp['Trns'].iloc[0]}]')
             print(f'Credit Account: {crdAcc}')
@@ -237,6 +235,7 @@ def sortData(xlsx):
             elif crdAcc == arAcc:
                 if arAcc in drAccs:
                     dfGrp['Type'] = 'compDeposit'
+                    dfGrp['WARNINGS'] = '[ATTENTION] - [One off Event]'
                     print(f'Setting Type to: {dfGrp['Type'].iloc[0]}')
                 else:
                     dfGrp['Type'] = 'deposit'
@@ -251,6 +250,7 @@ def sortData(xlsx):
 
         dfFlt = pd.concat([dfFlt, dfGrp])
 
+    dfFlt = dfFlt[os.getenv('DFFLTHDR').split(',')]
     dfFlt.to_excel('src/FilteredData.xlsx', sheet_name='Data', index=False)
 
     # print(f"Main Excel:\n{df}")
@@ -262,7 +262,7 @@ def sortData(xlsx):
 def main():
     # Prepare excel entries for cheques template
     df = sortData('src/main.xlsx')
-    builder = IIFBuilder(df)
+    builder = IIFBuilder(df, 'src/iifExportFiles')
     builder.writeIIF()
 
 
