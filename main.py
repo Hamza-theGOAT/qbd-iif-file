@@ -11,13 +11,9 @@ class IIFBuilder:
         self.outDir = outDir
         self.df = df
 
-    def iifChecks(self, filename: str = 'checks.iif'):
+    def iifChecks(self, df: pd.DataFrame, filename: str = 'checks.iif'):
         # Output file path
         iif = os.path.join(self.outDir, filename)
-
-        # Separate Dr and Cr portion
-        dfDr = self.df[self.df['Debit'].notna()]
-        dfCrd = self.df[self.df['Debit'].isna()]
 
         with open(iif, 'w', encoding="utf-8") as f:
             # Write headers
@@ -25,18 +21,24 @@ class IIFBuilder:
             f.write('!SPL\tTRNSTYPE\tDATE\tDOCNUM\tACCNT\tAMOUNT\tMEMO\tNAME\n')
             f.write('!ENDTRNS\n')
 
-            # TRNS Entry (Main Line)
-            for _, r in dfCrd.iterrows():
-                f.write(
-                    f"TRNS\tCHECK\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t-{r['Credit']}\t{r['MEMO']}\t\n")
+            for _, grp in df.groupby('REF'):
+                print(f"Group within Data Frame:\n{grp}")
+                # Separate Dr and Cr portion
+                dfDr = grp[grp['Debit'].notna()]
+                dfCrd = grp[grp['Debit'].isna()]
 
-            # SPL Entry (Sub/Item Line)
-            for _, r in dfDr.iterrows():
-                f.write(
-                    f"SPL\tCHECK\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t{r['Debit']}\t{r['MEMO']}\t{r['Customer']}\t\n")
+                # TRNS Entry (Main Line)
+                for _, r in dfCrd.iterrows():
+                    f.write(
+                        f"TRNS\tCHECK\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t-{r['Credit']}\t{r['MEMO']}\t\n")
 
-            # Transaction Break
-            f.write("ENDTRNS\n")
+                # SPL Entry (Sub/Item Line)
+                for _, r in dfDr.iterrows():
+                    f.write(
+                        f"SPL\tCHECK\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t{r['Debit']}\t{r['MEMO']}\t{r['Customer']}\t\n")
+
+                # Transaction Break
+                f.write("ENDTRNS\n")
 
     def iifCompChecks(self, filename: str = 'compChecks.iif'):
         # Output file path
@@ -220,7 +222,7 @@ class IIFBuilder:
             elif ty == 'journal':
                 self.iifJournal()
             elif ty == 'check':
-                self.iifChecks()
+                self.iifChecks(df=dfTy)
             elif ty == 'compCheck':
                 self.iifCompChecks()
             else:
