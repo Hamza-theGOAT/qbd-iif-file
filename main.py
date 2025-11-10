@@ -15,14 +15,15 @@ class IIFBuilder:
         # Output file path
         iif = os.path.join(self.outDir, filename)
 
+        # Open and write iif file
         with open(iif, 'w', encoding="utf-8") as f:
             # Write headers
             f.write('!TRNS\tTRNSTYPE\tDATE\tDOCNUM\tACCNT\tAMOUNT\tMEMO\n')
             f.write('!SPL\tTRNSTYPE\tDATE\tDOCNUM\tACCNT\tAMOUNT\tMEMO\tNAME\n')
             f.write('!ENDTRNS\n')
 
+            # Iterate over each group by REF id
             for _, grp in df.groupby('REF'):
-                print(f"Group within Data Frame:\n{grp}")
                 # Separate Dr and Cr portion
                 dfDr = grp[grp['Debit'].notna()]
                 dfCrd = grp[grp['Debit'].isna()]
@@ -40,41 +41,44 @@ class IIFBuilder:
                 # Transaction Break
                 f.write("ENDTRNS\n")
 
-    def iifCompChecks(self, filename: str = 'compChecks.iif'):
+    def iifCompChecks(self, df: pd.DataFrame, filename: str = 'compChecks.iif'):
         # Output file path
         iif = os.path.join(self.outDir, filename)
-
-        # Separate Dr and Cr portion
-        dfDr = self.df[self.df['Debit'].notna()]
-        dfCrd = self.df[self.df['Debit'].isna()]
-        dfExp = dfDr.copy()
-        dfExp = dfExp[dfExp['ACCNT'] != os.getenv('AR')]
-        dfAR = dfDr.copy()
-        dfAR = dfAR[dfAR['ACCNT'] == os.getenv('AR')]
 
         with open(iif, 'w', encoding='utf-8') as f:
             # Write headers
             f.write('!TRNS\tTRNSTYPE\tDATE\tDOCNUM\tACCNT\tAMOUNT\tMEMO\n')
             f.write('!SPL\tTRNSTYPE\tDATE\tDOCNUM\tACCNT\tAMOUNT\tMEMO\tNAME\n')
             f.write('!ENDTRNS\n')
-            for _, r in dfAR.iterrows():
-                AmtCrd = -r['Debit']
-                crd = dfCrd.loc[dfCrd['REF'] == r['REF']].iloc[0]
-                f.write(
-                    f"TRNS\tCHECK\t{crd['DATE']}\t{crd['REF']}\t{crd['ACCNT']}\t{AmtCrd}\t{crd['MEMO']}\t\n")
-                f.write(
-                    f"SPL\tCHECK\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t{r['Debit']}\t{r['MEMO']}\t{r['Customer']}\t\n")
-                f.write("ENDTRNS\n")
 
-            for _, group in dfExp.groupby('REF'):
-                AmtCrd = -group['Debit'].sum()
-                crd = dfCrd.loc[dfCrd['REF'] == group['REF'].iloc[0]].iloc[0]
-                f.write(
-                    f"TRNS\tCHECK\t{crd['DATE']}\t{crd['REF']}\t{crd['ACCNT']}\t{AmtCrd}\t{crd['MEMO']}\t\n")
-                for _, r in group.iterrows():
+            for _, grp in df.groupby('REF'):
+                # Separate Dr and Cr portion
+                dfDr = grp[grp['Debit'].notna()]
+                dfCrd = grp[grp['Debit'].isna()]
+                dfExp = dfDr.copy()
+                dfExp = dfExp[dfExp['ACCNT'] != os.getenv('AR')]
+                dfAR = dfDr.copy()
+                dfAR = dfAR[dfAR['ACCNT'] == os.getenv('AR')]
+
+                for _, r in dfAR.iterrows():
+                    AmtCrd = -r['Debit']
+                    crd = dfCrd.loc[dfCrd['REF'] == r['REF']].iloc[0]
+                    f.write(
+                        f"TRNS\tCHECK\t{crd['DATE']}\t{crd['REF']}\t{crd['ACCNT']}\t{AmtCrd}\t{crd['MEMO']}\t\n")
                     f.write(
                         f"SPL\tCHECK\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t{r['Debit']}\t{r['MEMO']}\t{r['Customer']}\t\n")
-                f.write("ENDTRNS\n")
+                    f.write("ENDTRNS\n")
+
+                for _, group in dfExp.groupby('REF'):
+                    AmtCrd = -group['Debit'].sum()
+                    crd = dfCrd.loc[dfCrd['REF'] ==
+                                    group['REF'].iloc[0]].iloc[0]
+                    f.write(
+                        f"TRNS\tCHECK\t{crd['DATE']}\t{crd['REF']}\t{crd['ACCNT']}\t{AmtCrd}\t{crd['MEMO']}\t\n")
+                    for _, r in group.iterrows():
+                        f.write(
+                            f"SPL\tCHECK\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t{r['Debit']}\t{r['MEMO']}\t{r['Customer']}\t\n")
+                    f.write("ENDTRNS\n")
 
     def iifDeposits(self, filename: str = 'deposits.iif'):
         # Output file path
@@ -224,7 +228,7 @@ class IIFBuilder:
             elif ty == 'check':
                 self.iifChecks(df=dfTy)
             elif ty == 'compCheck':
-                self.iifCompChecks()
+                self.iifCompChecks(df=dfTy)
             else:
                 KeyError('Invalid Type')
 
