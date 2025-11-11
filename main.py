@@ -36,7 +36,7 @@ class IIFBuilder:
                 # SPL Entry (Sub/Item Line)
                 for _, r in dfDr.iterrows():
                     f.write(
-                        f"SPL\tCHECK\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t{r['Debit']}\t{r['MEMO']}\t{r['Customer']}\t\n")
+                        f"SPL\tCHECK\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t{r['Debit']}\t{r['MEMO']}\t{r['CUST']}\t\n")
 
                 # Transaction Break
                 f.write("ENDTRNS\n")
@@ -66,7 +66,7 @@ class IIFBuilder:
                     f.write(
                         f"TRNS\tCHECK\t{crd['DATE']}\t{crd['REF']}\t{crd['ACCNT']}\t{AmtCrd}\t{crd['MEMO']}\t\n")
                     f.write(
-                        f"SPL\tCHECK\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t{r['Debit']}\t{r['MEMO']}\t{r['Customer']}\t\n")
+                        f"SPL\tCHECK\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t{r['Debit']}\t{r['MEMO']}\t{r['CUST']}\t\n")
                     f.write("ENDTRNS\n")
 
                 for _, group in dfExp.groupby('REF'):
@@ -77,7 +77,7 @@ class IIFBuilder:
                         f"TRNS\tCHECK\t{crd['DATE']}\t{crd['REF']}\t{crd['ACCNT']}\t{AmtCrd}\t{crd['MEMO']}\t\n")
                     for _, r in group.iterrows():
                         f.write(
-                            f"SPL\tCHECK\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t{r['Debit']}\t{r['MEMO']}\t{r['Customer']}\t\n")
+                            f"SPL\tCHECK\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t{r['Debit']}\t{r['MEMO']}\t{r['CUST']}\t\n")
                     f.write("ENDTRNS\n")
 
     def iifDeposits(self, df: pd.DataFrame, filename: str = 'deposits.iif'):
@@ -103,18 +103,14 @@ class IIFBuilder:
                 # SPL Entry (Sub/Item Line)
                 for _, r in dfDr.iterrows():
                     f.write(
-                        f"SPL\tDEPOSIT\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t-{r['Credit']}\t{r['MEMO']}\t{r['Customer']}\t\n")
+                        f"SPL\tDEPOSIT\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t-{r['Credit']}\t{r['MEMO']}\t{r['CUST']}\t\n")
 
                 # Transaction Break
                 f.write("ENDTRNS\n")
 
-    def iifBills(self, filename: str = 'bills.iif'):
+    def iifBills(self, df: pd.DataFrame, filename: str = 'bills.iif'):
         # Output file path
         iif = os.path.join(self.outDir, filename)
-
-        # Separate Dr and Cr portion
-        dfDr = self.df[self.df['Debit'].notna()]
-        dfCrd = self.df[self.df['Debit'].isna()]
 
         with open(iif, 'w', encoding='utf-8') as f:
             # Write headers
@@ -124,20 +120,24 @@ class IIFBuilder:
                 '!SPL\tTRNSTYPE\tDATE\tDOCNUM\tACCNT\tAMOUNT\tMEMO\tNAME\n')
             f.write('!ENDTRNS\n')
 
-            # Write TRNS row (Payment details)
-            for _, r in dfCrd.iterrows():
-                f.write(
-                    f"TRNS\tBILL\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t-{r['Credit']}\t{r['MEMO']}\t{r['Customer']}\n"
-                )
+            for _, grp in df.groupby('REF'):
+                # Separate Dr and Cr portion
+                dfDr = grp[grp['Debit'].notna()]
+                dfCrd = grp[grp['Debit'].isna()]
+                # Write TRNS row (Payment details)
+                for _, r in dfCrd.iterrows():
+                    f.write(
+                        f"TRNS\tBILL\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t-{r['Credit']}\t{r['MEMO']}\t{r['CUST']}\n"
+                    )
 
-            # Write SPL row (AR account for customer)
-            for _, r in dfDr.iterrows():
-                f.write(
-                    f"SPL\tBILL\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t{r['Debit']}\t{r['MEMO']}\t{r['Customer']}\n"
-                )
+                # Write SPL row (AR account for customer)
+                for _, r in dfDr.iterrows():
+                    f.write(
+                        f"SPL\tBILL\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t{r['Debit']}\t{r['MEMO']}\t{r['CUST']}\n"
+                    )  # dfCrd['CUST'].iloc[0]
 
-            # End the transaction
-            f.write('ENDTRNS\n')
+                # End the transaction
+                f.write('ENDTRNS\n')
 
     def iifCompBills(self, filename: str = 'compBills.iif'):
         # Output file path
@@ -160,27 +160,27 @@ class IIFBuilder:
             # Invoices for the Receivable side
             for _, r in dfAR.iterrows():
                 f.write(
-                    f"TRNS\tINVOICE\t{r['DATE']}\t{r['REF']}\t{os.getenv('AR')}\t{r['Debit']}\t{r['MEMO']}\t{r['Customer']}\t\n")
+                    f"TRNS\tINVOICE\t{r['DATE']}\t{r['REF']}\t{os.getenv('AR')}\t{r['Debit']}\t{r['MEMO']}\t{r['CUST']}\t\n")
                 f.write(
-                    f"SPL\tINVOICE\t{r['DATE']}\t{r['REF']}\t{os.getenv('RA')}\t{-r['Debit']}\t{r['MEMO']}\t{r['Customer']}\t\n")
+                    f"SPL\tINVOICE\t{r['DATE']}\t{r['REF']}\t{os.getenv('RA')}\t{-r['Debit']}\t{r['MEMO']}\t{r['CUST']}\t\n")
                 f.write("ENDTRNS\n")
 
             # Bills for the Payable side
             for _, r in dfAR.iterrows():
                 f.write(
-                    f"TRNS\tBILL\t{r['DATE']}\t{r['REF']}\t{os.getenv('AP')}\t{-r['Debit']}\t{r['MEMO']}\t{r['Customer']}\t\n")
+                    f"TRNS\tBILL\t{r['DATE']}\t{r['REF']}\t{os.getenv('AP')}\t{-r['Debit']}\t{r['MEMO']}\t{r['CUST']}\t\n")
                 f.write(
-                    f"SPL\tBILL\t{r['DATE']}\t{r['REF']}\t{os.getenv('RA')}\t{r['Debit']}\t{r['MEMO']}\t{r['Customer']}\t\n")
+                    f"SPL\tBILL\t{r['DATE']}\t{r['REF']}\t{os.getenv('RA')}\t{r['Debit']}\t{r['MEMO']}\t{r['CUST']}\t\n")
                 f.write("ENDTRNS\n")
 
             for _, group in dfExp.groupby('REF'):
                 AmtCrd = -group['Debit'].sum()
                 crd = dfCrd.loc[dfCrd['REF'] == group['REF'].iloc[0]].iloc[0]
                 f.write(
-                    f"TRNS\tBILL\t{crd['DATE']}\t{crd['REF']}\t{crd['ACCNT']}\t{AmtCrd}\t{crd['MEMO']}\t\t{crd['Customer']}\t\n")
+                    f"TRNS\tBILL\t{crd['DATE']}\t{crd['REF']}\t{crd['ACCNT']}\t{AmtCrd}\t{crd['MEMO']}\t\t{crd['CUST']}\t\n")
                 for _, r in group.iterrows():
                     f.write(
-                        f"SPL\tBILL\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t{r['Debit']}\t{r['MEMO']}\t{r['Customer']}\t\n")
+                        f"SPL\tBILL\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t{r['Debit']}\t{r['MEMO']}\t{r['CUST']}\t\n")
                 f.write("ENDTRNS\n")
 
     def iifJournal(self, df: pd.DataFrame, filename: str = 'journals.iif'):
@@ -203,13 +203,13 @@ class IIFBuilder:
                 # Write TRNS row (Payment details)
                 for _, r in dfDr.iterrows():
                     f.write(
-                        f"TRNS\tGENERAL JOURNAL\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t{r['Debit']}\t{r['MEMO']}\t{r['Customer']}\n"
+                        f"TRNS\tGENERAL JOURNAL\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t{r['Debit']}\t{r['MEMO']}\t{r['CUST']}\n"
                     )
 
                 # Write SPL row (AR account for customer)
                 for _, r in dfCrd.iterrows():
                     f.write(
-                        f"SPL\tGENERAL JOURNAL\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t-{r['Credit']}\t{r['MEMO']}\t{r['Customer']}\n"
+                        f"SPL\tGENERAL JOURNAL\t{r['DATE']}\t{r['REF']}\t{r['ACCNT']}\t-{r['Credit']}\t{r['MEMO']}\t{r['CUST']}\n"
                     )
 
                 # End the transaction
@@ -220,7 +220,7 @@ class IIFBuilder:
             # print(f"Processing: {ty}")
             # print(f"DataFrame:\n{dfTy}")
             if ty == 'bill':
-                self.iifBills()
+                self.iifBills(df=dfTy)
             elif ty == 'compBill':
                 self.iifCompBills()
             elif ty == 'deposit':
@@ -237,7 +237,7 @@ class IIFBuilder:
 
 def sortData(xlsx):
     df = pd.read_excel(xlsx)
-    df['Customer'] = df['Customer'].fillna('')
+    df['CUST'] = df['CUST'].fillna('')
     df = df[df['DATE'].notna()]
     df['DATE'] = pd.to_datetime(
         df['DATE'], dayfirst=True, errors='coerce').dt.strftime('%m/%d/%Y')
